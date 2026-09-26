@@ -23,9 +23,10 @@ setting; such attempts fail rather than producing misleading diagnostics.
 
 For a fixed, deny-all Linux network policy, `network: { offline: true,
 allowedDomains: [], deniedDomains: ['*'] }` unshares the network namespace
-without starting any host HTTP proxy or socat bridge. This fork rejects
-nonempty allowlists, proxy settings, per-command network overrides, and live
-configuration updates in offline mode. It is not a portable network setting:
+without starting any host HTTP proxy or socat bridge. An on-disk seccomp
+helper is mandatory in this mode to block host pathname Unix sockets; socat
+is not required. This fork rejects nonempty allowlists, proxy settings,
+per-command network overrides, and live configuration updates in offline mode. It is not a portable network setting:
 macOS/Windows offline requests fail closed. The default proxied network mode
 is unchanged.
 

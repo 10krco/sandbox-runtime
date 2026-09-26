@@ -110,6 +110,8 @@ export type LinuxDependencyOptions = {
     seccompConfig?: SeccompConfig;
     bwrapPath?: string;
     socatPath?: string;
+    /** Fixed offline sessions have no host network bridge but require seccomp. */
+    offline?: boolean;
 };
 /**
  * Get detailed status of Linux sandbox dependencies

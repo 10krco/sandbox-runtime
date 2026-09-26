@@ -869,6 +869,7 @@ function createManager(legacySingleton: boolean): ISandboxManager {
         seccompConfig: config?.seccomp,
         bwrapPath: config?.bwrapPath,
         socatPath: config?.socatPath,
+        offline: config?.network.offline,
       })
       errors.push(...linuxDeps.errors)
       warnings.push(...linuxDeps.warnings)
@@ -1420,6 +1421,18 @@ function createManager(legacySingleton: boolean): ISandboxManager {
     // 1. updateConfig() can enable network access for already-running processes
     // 2. The proxy blocks all requests when allowlist is empty
     const needsNetworkProxy = hasNetworkConfig && !config?.network.offline
+    if (config?.network.offline) {
+      const deps = checkLinuxDependencies({
+        seccompConfig: getSeccompConfig(),
+        bwrapPath: config.bwrapPath,
+        offline: true,
+      })
+      if (deps.errors.length > 0) {
+        throw new Error(
+          `Offline sandbox dependencies unavailable: ${deps.errors.join(', ')}`,
+        )
+      }
+    }
 
     // Wait for network initialization only if proxy is actually needed
     if (needsNetworkProxy) {

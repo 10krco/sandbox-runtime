@@ -340,7 +340,7 @@ export function getLinuxDependencyStatus(opts) {
  * Check sandbox dependencies and return structured result
  */
 export function checkLinuxDependencies(opts) {
-    const { seccompConfig, bwrapPath, socatPath } = opts ?? {};
+    const { seccompConfig, bwrapPath, socatPath, offline = false } = opts ?? {};
     const errors = [];
     const warnings = [];
     // An explicit override is a directive, not a hint — if it doesn't exist,
@@ -352,14 +352,24 @@ export function checkLinuxDependencies(opts) {
     else if (whichSync('bwrap') === null) {
         errors.push('bubblewrap (bwrap) not installed');
     }
-    if (socatPath) {
-        if (!isExecutable(socatPath))
-            errors.push(`socat not executable at ${socatPath}`);
+    if (!offline) {
+        if (socatPath) {
+            if (!isExecutable(socatPath))
+                errors.push(`socat not executable at ${socatPath}`);
+        }
+        else if (whichSync('socat') === null) {
+            errors.push('socat not installed');
+        }
     }
-    else if (whichSync('socat') === null) {
-        errors.push('socat not installed');
+    if (offline) {
+        // argv0 is a caller claim about an embedded binary, not a verified
+        // executable. Require an on-disk helper in this fixed deny-all mode.
+        if (seccompConfig?.argv0 ||
+            getApplySeccompBinaryPath(seccompConfig?.applyPath) === null) {
+            errors.push('offline mode requires an on-disk seccomp helper to block host Unix sockets');
+        }
     }
-    if (!seccompConfig?.argv0 &&
+    else if (!seccompConfig?.argv0 &&
         getApplySeccompBinaryPath(seccompConfig?.applyPath) === null) {
         warnings.push('seccomp not available - unix socket access not restricted');
     }
