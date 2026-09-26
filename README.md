@@ -148,7 +148,7 @@ Both filesystem and network isolation are required for effective sandboxing. Wit
 **Filesystem Isolation** enforces read and write restrictions:
 
 - **Read** (deny-then-allow pattern): By default, read access is allowed everywhere. You can deny broad regions (e.g., `/Users`) and then re-allow specific paths within them (e.g., `.`). `allowRead` takes precedence over `denyRead` — the opposite of write, where `denyWrite` takes precedence over `allowWrite`.
-- **Write** (allow-only pattern): By default, write access is denied everywhere. You must explicitly allow paths (e.g., `.`, `/tmp`). An empty allow list means no write access.
+- **Write** (allow-only pattern): Explicit `allowWrite` entries grant selected paths, but `includeDefaultWritePaths` defaults to `true` and also grants built-in paths such as `/tmp/claude` and `~/.npm/_logs` (not all of `/tmp` or `HOME`). For workspace-only writes set `filesystem.includeDefaultWritePaths: false` and specify the intended workspace in `allowWrite`.
 
 **Network Isolation** (allow-only pattern): By default, all network access is denied. You must explicitly allow domains. An empty allowedDomains list means no network access. Network traffic is routed through proxy servers running on the host:
 
@@ -527,7 +527,7 @@ Watchman accesses files outside the sandbox boundaries, which will trigger permi
   - Ubuntu/Debian: `apt-get install bubblewrap`
   - Fedora: `dnf install bubblewrap`
   - Arch: `pacman -S bubblewrap`
-- `socat` - Socket relay for proxy bridging
+- `socat` - Socket relay for **proxied network mode only**; the fork's fixed Linux offline mode does not require it
   - Ubuntu/Debian: `apt-get install socat`
   - Fedora: `dnf install socat`
   - Arch: `pacman -S socat`

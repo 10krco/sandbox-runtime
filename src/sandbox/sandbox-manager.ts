@@ -91,6 +91,15 @@ function configuredDefaultWritePaths(c?: SandboxRuntimeConfig): string[] {
     : getDefaultWritePaths()
 }
 
+function copyRuntimeConfig(source: SandboxRuntimeConfig): SandboxRuntimeConfig {
+  // Preserve the supported callback; structuredClone intentionally owns every
+  // mutable policy array, so caller mutations cannot change a live session.
+  const { filterRequest, ...network } = source.network
+  const copy: SandboxRuntimeConfig = structuredClone({ ...source, network })
+  copy.network.filterRequest = filterRequest
+  return copy
+}
+
 interface HostNetworkManagerContext {
   httpProxyPort: number
   socksProxyPort: number
@@ -507,8 +516,10 @@ function createManager(legacySingleton: boolean): ISandboxManager {
       }
     }
 
-    // Store config for use by other functions
-    config = runtimeConfig
+    // The Linux monitor and command wrapper must see the same immutable-by-
+    // caller session policy, even if the initialize() input is later mutated.
+    config = copyRuntimeConfig(runtimeConfig)
+    runtimeConfig = config
 
     // Resolve parent/upstream proxy from config or HTTP_PROXY env before we
     // start our own listeners (which will later shadow those vars in the child).
@@ -1686,7 +1697,7 @@ function createManager(legacySingleton: boolean): ISandboxManager {
    * @returns The current configuration, or undefined if not initialized
    */
   function getConfig(): SandboxRuntimeConfig | undefined {
-    return config
+    return config ? copyRuntimeConfig(config) : undefined
   }
 
   /**
@@ -1737,12 +1748,8 @@ function createManager(legacySingleton: boolean): ISandboxManager {
         { level: 'warn' },
       )
     }
-    // Deep clone the config to avoid mutations. structuredClone cannot clone
-    // functions, so pull filterRequest out, clone the rest, and put it back —
-    // a function reference is immutable in the sense that matters here.
-    const { filterRequest, ...rest } = newConfig.network
-    config = structuredClone({ ...newConfig, network: rest })
-    config.network.filterRequest = filterRequest
+    // Use the same owned policy snapshot as initialize().
+    config = copyRuntimeConfig(newConfig)
     // Re-resolve parent proxy so hot-reload picks up changes. Note: the proxy
     // servers capture `parentProxy` by value at creation, so changes here take
     // effect only on re-initialize. This keeps the state consistent for the

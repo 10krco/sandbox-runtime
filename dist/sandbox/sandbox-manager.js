@@ -26,6 +26,14 @@ function configuredDefaultWritePaths(c) {
         ? []
         : getDefaultWritePaths();
 }
+function copyRuntimeConfig(source) {
+    // Preserve the supported callback; structuredClone intentionally owns every
+    // mutable policy array, so caller mutations cannot change a live session.
+    const { filterRequest, ...network } = source.network;
+    const copy = structuredClone({ ...source, network });
+    copy.network.filterRequest = filterRequest;
+    return copy;
+}
 const cleanupHandlers = new Map();
 function cleanupManagers() {
     runCleanupHandlers([...cleanupHandlers.keys()]);
@@ -317,8 +325,10 @@ function createManager(legacySingleton) {
                 throw new Error('Offline mode requires Linux and a fixed deny-all network without a proxy');
             }
         }
-        // Store config for use by other functions
-        config = runtimeConfig;
+        // The Linux monitor and command wrapper must see the same immutable-by-
+        // caller session policy, even if the initialize() input is later mutated.
+        config = copyRuntimeConfig(runtimeConfig);
+        runtimeConfig = config;
         // Resolve parent/upstream proxy from config or HTTP_PROXY env before we
         // start our own listeners (which will later shadow those vars in the child).
         parentProxy = resolveParentProxy(runtimeConfig.network.parentProxy);
@@ -1298,7 +1308,7 @@ function createManager(legacySingleton) {
      * @returns The current configuration, or undefined if not initialized
      */
     function getConfig() {
-        return config;
+        return config ? copyRuntimeConfig(config) : undefined;
     }
     /**
      * Update the sandbox configuration in place.
@@ -1339,12 +1349,8 @@ function createManager(legacySingleton) {
                 `stamp/grant is session-wide — call reset() then initialize() ` +
                 `to apply. The previously-applied set stays in effect.`, { level: 'warn' });
         }
-        // Deep clone the config to avoid mutations. structuredClone cannot clone
-        // functions, so pull filterRequest out, clone the rest, and put it back —
-        // a function reference is immutable in the sense that matters here.
-        const { filterRequest, ...rest } = newConfig.network;
-        config = structuredClone({ ...newConfig, network: rest });
-        config.network.filterRequest = filterRequest;
+        // Use the same owned policy snapshot as initialize().
+        config = copyRuntimeConfig(newConfig);
         // Re-resolve parent proxy so hot-reload picks up changes. Note: the proxy
         // servers capture `parentProxy` by value at creation, so changes here take
         // effect only on re-initialize. This keeps the state consistent for the

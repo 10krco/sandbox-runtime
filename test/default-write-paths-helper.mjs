@@ -24,6 +24,15 @@ try {
   assert.ok(allowed.includes(workspace))
   if (includeDefaultWritePaths) assert.ok(allowed.includes(logs))
   else assert.deepEqual(allowed, [workspace])
+  // The caller and getConfig() must not be able to mutate the monitor's
+  // initialization-time write policy behind updateConfig's guard.
+  config.filesystem.includeDefaultWritePaths = !includeDefaultWritePaths
+  config.filesystem.allowWrite.push(join(root, 'outside-grant'))
+  assert.deepEqual(manager.getFsWriteConfig().allowOnly, allowed)
+  assert.throws(() => manager.updateConfig(config), /requires reset and initialize/)
+  config.filesystem.includeDefaultWritePaths = includeDefaultWritePaths
+  manager.getConfig().filesystem.includeDefaultWritePaths = !includeDefaultWritePaths
+  assert.deepEqual(manager.getFsWriteConfig().allowOnly, allowed)
   assert.throws(
     () => manager.updateConfig({
       ...config,
