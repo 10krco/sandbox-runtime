@@ -1,5 +1,20 @@
 # Anthropic Sandbox Runtime (srt)
 
+## 10krco Foundry fork
+
+This fork adds `filesystem.includeDefaultWritePaths: false` for callers
+requiring workspace-only writes. The upstream default remains `true`. Both
+the write configuration and Linux violation monitor honor the option; the
+separate Foundry external observer tests the real filesystem effect, not
+just a parsed config. The git package includes compiled `dist/` from this
+source and the upstream `@carderne/sandbox-runtime@0.0.72` npm artifact's
+seccomp helpers (npm integrity
+`sha512-7GI5hDQ7vUHdkVsHHZ76kbVTzy2Wt0twcQhUDVpGG5mgn5vENpWXImU8kKFf+YifDHn7nSoltCqa1RAqZZbVtw==`;
+x64 SHA-256 `2c8fb6fb4f1a149c07160cb7dfe76331a72608227fef5b4fe20490d64f101a2b`,
+arm64 SHA-256 `d27545cb95bc36aa99ace62ba9cb2f2d4432b3dae7fea68d23f65b69e017c6d7`).
+No npm publication or automatic upstream update is implied. These binary
+provenance hashes are not an audit of the upstream implementation.
+
 A lightweight sandboxing tool for enforcing filesystem and network restrictions on arbitrary processes at the OS level, without requiring a container.
 
 `srt` uses native OS sandboxing primitives (`sandbox-exec` on macOS, `bubblewrap` on Linux) and proxy-based network filtering. It can be used to sandbox the behaviour of agents, local MCP servers, bash commands and arbitrary processes.

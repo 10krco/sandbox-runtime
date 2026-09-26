@@ -85,6 +85,14 @@ import type { ResolvedParentProxy } from './parent-proxy.js'
 import { EOL } from 'node:os'
 import { dirname } from 'node:path'
 
+function configuredDefaultWritePaths(
+  c?: SandboxRuntimeConfig,
+  override?: Partial<SandboxRuntimeConfig>,
+): string[] {
+  return (override?.filesystem?.includeDefaultWritePaths ??
+    c?.filesystem.includeDefaultWritePaths) === false ? [] : getDefaultWritePaths()
+}
+
 interface HostNetworkManagerContext {
   httpProxyPort: number
   socksProxyPort: number
@@ -526,7 +534,7 @@ function createManager(legacySingleton: boolean): ISandboxManager {
           // (allowed or not). Only paths bwrap would actually refuse — outside
           // allowWrite or inside a denyWrite carve-out — go to the store.
           allowWritePaths: [
-            ...getDefaultWritePaths(),
+            ...configuredDefaultWritePaths(config),
             ...config.filesystem.allowWrite,
           ],
           denyWritePaths: config.filesystem.denyWrite,
@@ -999,7 +1007,7 @@ function createManager(legacySingleton: boolean): ISandboxManager {
 
   function getFsWriteConfig(): FsWriteRestrictionConfig {
     if (!config) {
-      return { allowOnly: getDefaultWritePaths(), denyWithinAllow: [] }
+      return { allowOnly: configuredDefaultWritePaths(), denyWithinAllow: [] }
     }
 
     if (config.filesystem.disabled) {
@@ -1029,7 +1037,7 @@ function createManager(legacySingleton: boolean): ISandboxManager {
       })
 
     // Build allowOnly list: default paths + configured allow paths
-    const allowOnly = [...getDefaultWritePaths(), ...allowPaths]
+    const allowOnly = [...configuredDefaultWritePaths(config), ...allowPaths]
 
     return {
       allowOnly,
@@ -1302,7 +1310,7 @@ function createManager(legacySingleton: boolean): ISandboxManager {
           [],
       )
       writeConfig = {
-        allowOnly: [...getDefaultWritePaths(), ...userAllowWrite],
+        allowOnly: [...configuredDefaultWritePaths(config, customConfig), ...userAllowWrite],
         denyWithinAllow: stripWriteGlobs(
           customConfig?.filesystem?.denyWrite ??
             config?.filesystem.denyWrite ??
