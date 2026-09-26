@@ -299,6 +299,24 @@ function createManager(legacySingleton) {
             await initializationPromise;
             return;
         }
+        // Offline sessions must have no route back to host networking. A proxy
+        // would leave a credential-bearing host bridge behind on supervisor crash.
+        if (runtimeConfig.network.offline) {
+            const network = runtimeConfig.network;
+            if (getPlatform() !== 'linux' ||
+                network.allowedDomains.length !== 0 ||
+                !network.deniedDomains.includes('*') ||
+                network.allowAllUnixSockets ||
+                network.allowLocalBinding ||
+                network.httpProxyPort !== undefined ||
+                network.socksProxyPort !== undefined ||
+                network.mitmProxy !== undefined ||
+                network.tlsTerminate !== undefined ||
+                network.filterRequest !== undefined ||
+                network.parentProxy !== undefined) {
+                throw new Error('Offline mode requires Linux and a fixed deny-all network without a proxy');
+            }
+        }
         // Store config for use by other functions
         config = runtimeConfig;
         // Resolve parent/upstream proxy from config or HTTP_PROXY env before we
@@ -488,6 +506,17 @@ function createManager(legacySingleton) {
                 config = undefined;
                 throw e;
             }
+        }
+        // In fixed offline mode bwrap --unshare-net is the network boundary.
+        // Do not start a proxy, TCP listener, socat bridge, or credential-bearing
+        // host process. A live config update or per-call override is forbidden.
+        if (runtimeConfig.network.offline) {
+            initializationPromise = Promise.resolve({
+                httpProxyPort: 0,
+                socksProxyPort: 0,
+                linuxBridge: undefined,
+            });
+            return;
         }
         // Initialize network infrastructure
         initializationPromise = (async () => {
@@ -1033,6 +1062,9 @@ function createManager(legacySingleton) {
         // 1. customConfig has network.allowedDomains defined (even if empty array = block all)
         // 2. OR config has network.allowedDomains defined (even if empty array = block all)
         // An empty allowedDomains array means "no domains allowed" = block all network access
+        if (config?.network.offline && customConfig?.network !== undefined) {
+            throw new Error('Offline network policy cannot be overridden per command');
+        }
         const hasNetworkConfig = customConfig?.network?.allowedDomains !== undefined ||
             config?.network?.allowedDomains !== undefined;
         // Network RESTRICTION is needed whenever network config is specified
@@ -1042,7 +1074,7 @@ function createManager(legacySingleton) {
         // Even with empty allowedDomains, we route through proxy so that:
         // 1. updateConfig() can enable network access for already-running processes
         // 2. The proxy blocks all requests when allowlist is empty
-        const needsNetworkProxy = hasNetworkConfig;
+        const needsNetworkProxy = hasNetworkConfig && !config?.network.offline;
         // Wait for network initialization only if proxy is actually needed
         if (needsNetworkProxy) {
             if (!(await waitForNetworkInitialization()) || !managerContext) {
@@ -1278,6 +1310,9 @@ function createManager(legacySingleton) {
      * @param newConfig - The new configuration to use
      */
     function updateConfig(newConfig) {
+        if (config?.network.offline || newConfig.network.offline) {
+            throw new Error('Offline network policy cannot be updated; reset and initialize a new session');
+        }
         if (getPlatform() === 'windows' &&
             config &&
             !sameWindowsStampSet(newConfig)) {

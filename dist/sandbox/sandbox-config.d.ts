@@ -478,6 +478,7 @@ export declare const CredentialsConfigSchema: z.ZodObject<{
  * Network configuration schema for validation
  */
 export declare const NetworkConfigSchema: z.ZodObject<{
+    offline: z.ZodOptional<z.ZodLiteral<true>>;
     allowedDomains: z.ZodArray<z.ZodEffects<z.ZodString, string, string>, "many">;
     deniedDomains: z.ZodArray<z.ZodUnion<[z.ZodLiteral<"*">, z.ZodEffects<z.ZodString, string, string>]>, "many">;
     strictAllowlist: z.ZodOptional<z.ZodBoolean>;
@@ -541,6 +542,7 @@ export declare const NetworkConfigSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     allowedDomains: string[];
     deniedDomains: string[];
+    offline?: true | undefined;
     strictAllowlist?: boolean | undefined;
     allowUnixSockets?: string[] | undefined;
     allowAllUnixSockets?: boolean | undefined;
@@ -568,6 +570,7 @@ export declare const NetworkConfigSchema: z.ZodObject<{
 }, {
     allowedDomains: string[];
     deniedDomains: string[];
+    offline?: true | undefined;
     strictAllowlist?: boolean | undefined;
     allowUnixSockets?: string[] | undefined;
     allowAllUnixSockets?: boolean | undefined;
@@ -715,6 +718,7 @@ export declare const SeccompConfigSchema: z.ZodObject<{
  */
 export declare const SandboxRuntimeConfigSchema: z.ZodEffects<z.ZodObject<{
     network: z.ZodObject<{
+        offline: z.ZodOptional<z.ZodLiteral<true>>;
         allowedDomains: z.ZodArray<z.ZodEffects<z.ZodString, string, string>, "many">;
         deniedDomains: z.ZodArray<z.ZodUnion<[z.ZodLiteral<"*">, z.ZodEffects<z.ZodString, string, string>]>, "many">;
         strictAllowlist: z.ZodOptional<z.ZodBoolean>;
@@ -778,6 +782,7 @@ export declare const SandboxRuntimeConfigSchema: z.ZodEffects<z.ZodObject<{
     }, "strip", z.ZodTypeAny, {
         allowedDomains: string[];
         deniedDomains: string[];
+        offline?: true | undefined;
         strictAllowlist?: boolean | undefined;
         allowUnixSockets?: string[] | undefined;
         allowAllUnixSockets?: boolean | undefined;
@@ -805,6 +810,7 @@ export declare const SandboxRuntimeConfigSchema: z.ZodEffects<z.ZodObject<{
     }, {
         allowedDomains: string[];
         deniedDomains: string[];
+        offline?: true | undefined;
         strictAllowlist?: boolean | undefined;
         allowUnixSockets?: string[] | undefined;
         allowAllUnixSockets?: boolean | undefined;
@@ -1090,6 +1096,7 @@ export declare const SandboxRuntimeConfigSchema: z.ZodEffects<z.ZodObject<{
     network: {
         allowedDomains: string[];
         deniedDomains: string[];
+        offline?: true | undefined;
         strictAllowlist?: boolean | undefined;
         allowUnixSockets?: string[] | undefined;
         allowAllUnixSockets?: boolean | undefined;
@@ -1176,6 +1183,7 @@ export declare const SandboxRuntimeConfigSchema: z.ZodEffects<z.ZodObject<{
     network: {
         allowedDomains: string[];
         deniedDomains: string[];
+        offline?: true | undefined;
         strictAllowlist?: boolean | undefined;
         allowUnixSockets?: string[] | undefined;
         allowAllUnixSockets?: boolean | undefined;
@@ -1262,6 +1270,7 @@ export declare const SandboxRuntimeConfigSchema: z.ZodEffects<z.ZodObject<{
     network: {
         allowedDomains: string[];
         deniedDomains: string[];
+        offline?: true | undefined;
         strictAllowlist?: boolean | undefined;
         allowUnixSockets?: string[] | undefined;
         allowAllUnixSockets?: boolean | undefined;
@@ -1348,6 +1357,7 @@ export declare const SandboxRuntimeConfigSchema: z.ZodEffects<z.ZodObject<{
     network: {
         allowedDomains: string[];
         deniedDomains: string[];
+        offline?: true | undefined;
         strictAllowlist?: boolean | undefined;
         allowUnixSockets?: string[] | undefined;
         allowAllUnixSockets?: boolean | undefined;

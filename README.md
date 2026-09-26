@@ -21,6 +21,14 @@ provenance hashes are not an audit of the upstream implementation. The
 session-scoped Linux violation monitor cannot follow per-call changes to this
 setting; such attempts fail rather than producing misleading diagnostics.
 
+For a fixed, deny-all Linux network policy, `network: { offline: true,
+allowedDomains: [], deniedDomains: ['*'] }` unshares the network namespace
+without starting any host HTTP proxy or socat bridge. This fork rejects
+nonempty allowlists, proxy settings, per-command network overrides, and live
+configuration updates in offline mode. It is not a portable network setting:
+macOS/Windows offline requests fail closed. The default proxied network mode
+is unchanged.
+
 A lightweight sandboxing tool for enforcing filesystem and network restrictions on arbitrary processes at the OS level, without requiring a container.
 
 `srt` uses native OS sandboxing primitives (`sandbox-exec` on macOS, `bubblewrap` on Linux) and proxy-based network filtering. It can be used to sandbox the behaviour of agents, local MCP servers, bash commands and arbitrary processes.
