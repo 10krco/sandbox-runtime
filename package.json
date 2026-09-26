@@ -1,6 +1,6 @@
 {
   "name": "@carderne/sandbox-runtime",
-  "version": "0.0.72",
+  "version": "0.0.72-foundry.1",
   "description": "Anthropic Sandbox Runtime (ASRT) - A general-purpose tool for wrapping security boundaries around arbitrary processes",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,8 +21,7 @@
     "lint": "eslint 'src/**/*.ts' --fix --cache --cache-location=node_modules/.cache/.eslintcache",
     "lint:check": "eslint 'src/**/*.ts' --cache --cache-location=node_modules/.cache/.eslintcache",
     "format": "prettier --write 'src/**/*.ts' --cache --log-level warn",
-    "prepublishOnly": "npm run clean && npm run build",
-    "prepare": "husky"
+    "prepublishOnly": "npm run clean && npm run build"
   },
   "dependencies": {
     "@pondwader/socks5-server": "^1.0.10",

@@ -537,6 +537,12 @@ export const CredentialsConfigSchema = z
  * Network configuration schema for validation
  */
 export const NetworkConfigSchema = z.object({
+  offline: z
+    .literal(true)
+    .optional()
+    .describe(
+      'Linux-only fixed deny-all mode: unshare the network namespace without starting a host proxy or bridge. This session cannot be dynamically updated.',
+    ),
   allowedDomains: z
     .array(domainPatternSchema)
     .describe('List of allowed domains (e.g., ["github.com", "*.npmjs.org"])'),
@@ -694,6 +700,9 @@ export const NetworkConfigSchema = z.object({
  * Filesystem configuration schema for validation
  */
 export const FilesystemConfigSchema = z.object({
+  // Opt out of the library's convenience writes outside the caller's
+  // allowWrite roots. Required by callers promising workspace-only effects.
+  includeDefaultWritePaths: z.boolean().optional(),
   disabled: z
     .boolean()
     .optional()

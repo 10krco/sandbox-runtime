@@ -457,6 +457,8 @@ export type LinuxDependencyOptions = {
   seccompConfig?: SeccompConfig
   bwrapPath?: string
   socatPath?: string
+  /** Fixed offline sessions have no host network bridge but require seccomp. */
+  offline?: boolean
 }
 
 function isExecutable(p: string): boolean {
@@ -492,7 +494,7 @@ export function getLinuxDependencyStatus(
 export function checkLinuxDependencies(
   opts?: LinuxDependencyOptions,
 ): SandboxDependencyCheck {
-  const { seccompConfig, bwrapPath, socatPath } = opts ?? {}
+  const { seccompConfig, bwrapPath, socatPath, offline = false } = opts ?? {}
   const errors: string[] = []
   const warnings: string[] = []
 
@@ -505,14 +507,27 @@ export function checkLinuxDependencies(
     errors.push('bubblewrap (bwrap) not installed')
   }
 
-  if (socatPath) {
-    if (!isExecutable(socatPath))
-      errors.push(`socat not executable at ${socatPath}`)
-  } else if (whichSync('socat') === null) {
-    errors.push('socat not installed')
+  if (!offline) {
+    if (socatPath) {
+      if (!isExecutable(socatPath))
+        errors.push(`socat not executable at ${socatPath}`)
+    } else if (whichSync('socat') === null) {
+      errors.push('socat not installed')
+    }
   }
 
-  if (
+  if (offline) {
+    // argv0 is a caller claim about an embedded binary, not a verified
+    // executable. Require an on-disk helper in this fixed deny-all mode.
+    if (
+      seccompConfig?.argv0 ||
+      getApplySeccompBinaryPath(seccompConfig?.applyPath) === null
+    ) {
+      errors.push(
+        'offline mode requires an on-disk seccomp helper to block host Unix sockets',
+      )
+    }
+  } else if (
     !seccompConfig?.argv0 &&
     getApplySeccompBinaryPath(seccompConfig?.applyPath) === null
   ) {

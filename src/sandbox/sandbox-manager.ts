@@ -85,6 +85,21 @@ import type { ResolvedParentProxy } from './parent-proxy.js'
 import { EOL } from 'node:os'
 import { dirname } from 'node:path'
 
+function configuredDefaultWritePaths(c?: SandboxRuntimeConfig): string[] {
+  return c?.filesystem.includeDefaultWritePaths === false
+    ? []
+    : getDefaultWritePaths()
+}
+
+function copyRuntimeConfig(source: SandboxRuntimeConfig): SandboxRuntimeConfig {
+  // Preserve the supported callback; structuredClone intentionally owns every
+  // mutable policy array, so caller mutations cannot change a live session.
+  const { filterRequest, ...network } = source.network
+  const copy: SandboxRuntimeConfig = structuredClone({ ...source, network })
+  copy.network.filterRequest = filterRequest
+  return copy
+}
+
 interface HostNetworkManagerContext {
   httpProxyPort: number
   socksProxyPort: number
@@ -478,8 +493,33 @@ function createManager(legacySingleton: boolean): ISandboxManager {
       return
     }
 
-    // Store config for use by other functions
-    config = runtimeConfig
+    // Offline sessions must have no route back to host networking. A proxy
+    // would leave a credential-bearing host bridge behind on supervisor crash.
+    if (runtimeConfig.network.offline) {
+      const network = runtimeConfig.network
+      if (
+        getPlatform() !== 'linux' ||
+        network.allowedDomains.length !== 0 ||
+        !network.deniedDomains.includes('*') ||
+        network.allowAllUnixSockets ||
+        network.allowLocalBinding ||
+        network.httpProxyPort !== undefined ||
+        network.socksProxyPort !== undefined ||
+        network.mitmProxy !== undefined ||
+        network.tlsTerminate !== undefined ||
+        network.filterRequest !== undefined ||
+        network.parentProxy !== undefined
+      ) {
+        throw new Error(
+          'Offline mode requires Linux and a fixed deny-all network without a proxy',
+        )
+      }
+    }
+
+    // The Linux monitor and command wrapper must see the same immutable-by-
+    // caller session policy, even if the initialize() input is later mutated.
+    config = copyRuntimeConfig(runtimeConfig)
+    runtimeConfig = config
 
     // Resolve parent/upstream proxy from config or HTTP_PROXY env before we
     // start our own listeners (which will later shadow those vars in the child).
@@ -526,7 +566,7 @@ function createManager(legacySingleton: boolean): ISandboxManager {
           // (allowed or not). Only paths bwrap would actually refuse — outside
           // allowWrite or inside a denyWrite carve-out — go to the store.
           allowWritePaths: [
-            ...getDefaultWritePaths(),
+            ...configuredDefaultWritePaths(config),
             ...config.filesystem.allowWrite,
           ],
           denyWritePaths: config.filesystem.denyWrite,
@@ -696,6 +736,18 @@ function createManager(legacySingleton: boolean): ISandboxManager {
       }
     }
 
+    // In fixed offline mode bwrap --unshare-net is the network boundary.
+    // Do not start a proxy, TCP listener, socat bridge, or credential-bearing
+    // host process. A live config update or per-call override is forbidden.
+    if (runtimeConfig.network.offline) {
+      initializationPromise = Promise.resolve({
+        httpProxyPort: 0,
+        socksProxyPort: 0,
+        linuxBridge: undefined,
+      })
+      return
+    }
+
     // Initialize network infrastructure
     initializationPromise = (async () => {
       try {
@@ -828,6 +880,7 @@ function createManager(legacySingleton: boolean): ISandboxManager {
         seccompConfig: config?.seccomp,
         bwrapPath: config?.bwrapPath,
         socatPath: config?.socatPath,
+        offline: config?.network.offline,
       })
       errors.push(...linuxDeps.errors)
       warnings.push(...linuxDeps.warnings)
@@ -999,7 +1052,7 @@ function createManager(legacySingleton: boolean): ISandboxManager {
 
   function getFsWriteConfig(): FsWriteRestrictionConfig {
     if (!config) {
-      return { allowOnly: getDefaultWritePaths(), denyWithinAllow: [] }
+      return { allowOnly: configuredDefaultWritePaths(), denyWithinAllow: [] }
     }
 
     if (config.filesystem.disabled) {
@@ -1029,7 +1082,7 @@ function createManager(legacySingleton: boolean): ISandboxManager {
       })
 
     // Build allowOnly list: default paths + configured allow paths
-    const allowOnly = [...getDefaultWritePaths(), ...allowPaths]
+    const allowOnly = [...configuredDefaultWritePaths(config), ...allowPaths]
 
     return {
       allowOnly,
@@ -1251,6 +1304,14 @@ function createManager(legacySingleton: boolean): ISandboxManager {
     abortSignal?: AbortSignal,
   ): Promise<string> {
     const platform = getPlatform()
+    // The Linux violation monitor is session-scoped. A per-call change to
+    // implicit write grants would be enforced by bwrap but misclassified by
+    // its monitor; reject it rather than silently presenting false telemetry.
+    const sessionDefaults = config?.filesystem.includeDefaultWritePaths ?? true
+    const perCallDefaults = customConfig?.filesystem?.includeDefaultWritePaths
+    if (perCallDefaults !== undefined && perCallDefaults !== sessionDefaults) {
+      throw new Error('includeDefaultWritePaths cannot change per call')
+    }
 
     // filesystem.disabled bypasses ALL filesystem rule generation. Both
     // platform wrappers treat readConfig/writeConfig === undefined as "no
@@ -1302,7 +1363,7 @@ function createManager(legacySingleton: boolean): ISandboxManager {
           [],
       )
       writeConfig = {
-        allowOnly: [...getDefaultWritePaths(), ...userAllowWrite],
+        allowOnly: [...configuredDefaultWritePaths(config), ...userAllowWrite],
         denyWithinAllow: stripWriteGlobs(
           customConfig?.filesystem?.denyWrite ??
             config?.filesystem.denyWrite ??
@@ -1355,6 +1416,9 @@ function createManager(legacySingleton: boolean): ISandboxManager {
     // 1. customConfig has network.allowedDomains defined (even if empty array = block all)
     // 2. OR config has network.allowedDomains defined (even if empty array = block all)
     // An empty allowedDomains array means "no domains allowed" = block all network access
+    if (config?.network.offline && customConfig?.network !== undefined) {
+      throw new Error('Offline network policy cannot be overridden per command')
+    }
     const hasNetworkConfig =
       customConfig?.network?.allowedDomains !== undefined ||
       config?.network?.allowedDomains !== undefined
@@ -1367,7 +1431,19 @@ function createManager(legacySingleton: boolean): ISandboxManager {
     // Even with empty allowedDomains, we route through proxy so that:
     // 1. updateConfig() can enable network access for already-running processes
     // 2. The proxy blocks all requests when allowlist is empty
-    const needsNetworkProxy = hasNetworkConfig
+    const needsNetworkProxy = hasNetworkConfig && !config?.network.offline
+    if (config?.network.offline) {
+      const deps = checkLinuxDependencies({
+        seccompConfig: getSeccompConfig(),
+        bwrapPath: config.bwrapPath,
+        offline: true,
+      })
+      if (deps.errors.length > 0) {
+        throw new Error(
+          `Offline sandbox dependencies unavailable: ${deps.errors.join(', ')}`,
+        )
+      }
+    }
 
     // Wait for network initialization only if proxy is actually needed
     if (needsNetworkProxy) {
@@ -1621,7 +1697,7 @@ function createManager(legacySingleton: boolean): ISandboxManager {
    * @returns The current configuration, or undefined if not initialized
    */
   function getConfig(): SandboxRuntimeConfig | undefined {
-    return config
+    return config ? copyRuntimeConfig(config) : undefined
   }
 
   /**
@@ -1645,6 +1721,20 @@ function createManager(legacySingleton: boolean): ISandboxManager {
    * @param newConfig - The new configuration to use
    */
   function updateConfig(newConfig: SandboxRuntimeConfig): void {
+    // Linux's violation monitor classifies writes against the session policy.
+    // A live default-path toggle would desynchronize that evidence from bwrap.
+    if (
+      config &&
+      (config.filesystem.includeDefaultWritePaths ?? true) !==
+        (newConfig.filesystem.includeDefaultWritePaths ?? true)
+    ) {
+      throw new Error('includeDefaultWritePaths requires reset and initialize')
+    }
+    if (config?.network.offline || newConfig.network.offline) {
+      throw new Error(
+        'Offline network policy cannot be updated; reset and initialize a new session',
+      )
+    }
     if (
       getPlatform() === 'windows' &&
       config &&
@@ -1658,12 +1748,8 @@ function createManager(legacySingleton: boolean): ISandboxManager {
         { level: 'warn' },
       )
     }
-    // Deep clone the config to avoid mutations. structuredClone cannot clone
-    // functions, so pull filterRequest out, clone the rest, and put it back —
-    // a function reference is immutable in the sense that matters here.
-    const { filterRequest, ...rest } = newConfig.network
-    config = structuredClone({ ...newConfig, network: rest })
-    config.network.filterRequest = filterRequest
+    // Use the same owned policy snapshot as initialize().
+    config = copyRuntimeConfig(newConfig)
     // Re-resolve parent proxy so hot-reload picks up changes. Note: the proxy
     // servers capture `parentProxy` by value at creation, so changes here take
     // effect only on re-initialize. This keeps the state consistent for the

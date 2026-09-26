@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   build-seccomp:
+    # Review-pinned fork: never create a release or publish from this repo.
+    if: ${{ github.repository != '10krco/sandbox-runtime' }}
     name: Build seccomp (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -33,6 +35,7 @@ jobs:
           if-no-files-found: error
 
   build-srt-win:
+    if: ${{ github.repository != '10krco/sandbox-runtime' }}
     name: Build srt-win (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -70,6 +73,7 @@ jobs:
           if-no-files-found: error
 
   verify-package:
+    if: ${{ github.repository != '10krco/sandbox-runtime' }}
     # Proves getSrtWinPath() resolves and runs the host-arch (x64)
     # prebuilt binary from inside an installed package. The arm64
     # binary and seccomp binaries are not exercised here — the
@@ -120,6 +124,7 @@ jobs:
           Pop-Location
 
   publish:
+    if: ${{ github.repository != '10krco/sandbox-runtime' }}
     name: Publish to npm
     needs: [build-seccomp, build-srt-win, verify-package]
     runs-on: ubuntu-latest

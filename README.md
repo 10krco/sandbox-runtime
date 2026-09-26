@@ -1,5 +1,36 @@
 # Anthropic Sandbox Runtime (srt)
 
+## 10krco Foundry fork
+
+This fork adds `filesystem.includeDefaultWritePaths: false` for callers
+requiring workspace-only writes. The upstream default remains `true`. Both
+the write configuration and Linux violation monitor honor the option; the
+separate Foundry external observer tests the real filesystem effect, not
+just a parsed config. The git package includes compiled `dist/` from this
+source and the upstream `@carderne/sandbox-runtime@0.0.72` npm artifact's
+seccomp helpers (npm integrity
+`sha512-7GI5hDQ7vUHdkVsHHZ76kbVTzy2Wt0twcQhUDVpGG5mgn5vENpWXImU8kKFf+YifDHn7nSoltCqa1RAqZZbVtw==`;
+x64 SHA-256 `2c8fb6fb4f1a149c07160cb7dfe76331a72608227fef5b4fe20490d64f101a2b`,
+arm64 SHA-256 `d27545cb95bc36aa99ace62ba9cb2f2d4432b3dae7fea68d23f65b69e017c6d7`).
+Use a reviewed exact git commit rather than the upstream installation below:
+`npm install 'git+https://github.com/10krco/sandbox-runtime.git#<reviewed-commit>'`.
+For a local install, invoke the CLI as `npx srt` (or add
+`node_modules/.bin` to PATH); the `srt` examples below assume a global
+upstream install. No npm publication or automatic upstream update is implied. These binary
+provenance hashes are not an audit of the upstream implementation. The
+session-scoped Linux violation monitor cannot follow per-call or live
+`updateConfig()` changes to this setting; such attempts fail until reset and
+re-initialization rather than producing misleading diagnostics.
+
+For a fixed, deny-all Linux network policy, `network: { offline: true,
+allowedDomains: [], deniedDomains: ['*'] }` unshares the network namespace
+without starting any host HTTP proxy or socat bridge. An on-disk seccomp
+helper is mandatory in this mode to block host pathname Unix sockets; socat
+is not required. This fork rejects nonempty allowlists, proxy settings,
+per-command network overrides, and live configuration updates in offline mode. It is not a portable network setting:
+macOS/Windows offline requests fail closed. The default proxied network mode
+is unchanged.
+
 A lightweight sandboxing tool for enforcing filesystem and network restrictions on arbitrary processes at the OS level, without requiring a container.
 
 `srt` uses native OS sandboxing primitives (`sandbox-exec` on macOS, `bubblewrap` on Linux) and proxy-based network filtering. It can be used to sandbox the behaviour of agents, local MCP servers, bash commands and arbitrary processes.
@@ -11,7 +42,7 @@ A lightweight sandboxing tool for enforcing filesystem and network restrictions 
 ## Installation
 
 ```bash
-npm install -g @anthropic-ai/sandbox-runtime
+npm install -g @anthropic-ai/sandbox-runtime  # upstream package, not the 10krco fork
 ```
 
 ## Basic Usage
@@ -117,7 +148,7 @@ Both filesystem and network isolation are required for effective sandboxing. Wit
 **Filesystem Isolation** enforces read and write restrictions:
 
 - **Read** (deny-then-allow pattern): By default, read access is allowed everywhere. You can deny broad regions (e.g., `/Users`) and then re-allow specific paths within them (e.g., `.`). `allowRead` takes precedence over `denyRead` — the opposite of write, where `denyWrite` takes precedence over `allowWrite`.
-- **Write** (allow-only pattern): By default, write access is denied everywhere. You must explicitly allow paths (e.g., `.`, `/tmp`). An empty allow list means no write access.
+- **Write** (allow-only pattern): Explicit `allowWrite` entries grant selected paths, but `includeDefaultWritePaths` defaults to `true` and also grants built-in paths such as `/tmp/claude` and `~/.npm/_logs` (not all of `/tmp` or `HOME`). For workspace-only writes set `filesystem.includeDefaultWritePaths: false` and specify the intended workspace in `allowWrite`.
 
 **Network Isolation** (allow-only pattern): By default, all network access is denied. You must explicitly allow domains. An empty allowedDomains list means no network access. Network traffic is routed through proxy servers running on the host:
 
@@ -496,7 +527,7 @@ Watchman accesses files outside the sandbox boundaries, which will trigger permi
   - Ubuntu/Debian: `apt-get install bubblewrap`
   - Fedora: `dnf install bubblewrap`
   - Arch: `pacman -S bubblewrap`
-- `socat` - Socket relay for proxy bridging
+- `socat` - Socket relay for **proxied network mode only**; the fork's fixed Linux offline mode does not require it
   - Ubuntu/Debian: `apt-get install socat`
   - Fedora: `dnf install socat`
   - Arch: `pacman -S socat`
