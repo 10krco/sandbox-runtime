@@ -21,9 +21,10 @@ import { canonicalizeHost, isValidHost, redactUrl, resolveParentProxy, } from '.
 import { matchesDomainPattern } from './domain-pattern.js';
 import { EOL } from 'node:os';
 import { dirname } from 'node:path';
-function configuredDefaultWritePaths(c, override) {
-    return (override?.filesystem?.includeDefaultWritePaths ??
-        c?.filesystem.includeDefaultWritePaths) === false ? [] : getDefaultWritePaths();
+function configuredDefaultWritePaths(c) {
+    return c?.filesystem.includeDefaultWritePaths === false
+        ? []
+        : getDefaultWritePaths();
 }
 const cleanupHandlers = new Map();
 function cleanupManagers() {
@@ -938,6 +939,14 @@ function createManager(legacySingleton) {
     }
     async function wrapWithSandbox(command, binShell, customConfig, abortSignal) {
         const platform = getPlatform();
+        // The Linux violation monitor is session-scoped. A per-call change to
+        // implicit write grants would be enforced by bwrap but misclassified by
+        // its monitor; reject it rather than silently presenting false telemetry.
+        const sessionDefaults = config?.filesystem.includeDefaultWritePaths ?? true;
+        const perCallDefaults = customConfig?.filesystem?.includeDefaultWritePaths;
+        if (perCallDefaults !== undefined && perCallDefaults !== sessionDefaults) {
+            throw new Error('includeDefaultWritePaths cannot change per call');
+        }
         // filesystem.disabled bypasses ALL filesystem rule generation. Both
         // platform wrappers treat readConfig/writeConfig === undefined as "no
         // filesystem restrictions" (seatbelt emits `(allow file-write*)`; bwrap
@@ -977,7 +986,7 @@ function createManager(legacySingleton) {
                 config?.filesystem.allowWrite ??
                 []);
             writeConfig = {
-                allowOnly: [...configuredDefaultWritePaths(config, customConfig), ...userAllowWrite],
+                allowOnly: [...configuredDefaultWritePaths(config), ...userAllowWrite],
                 denyWithinAllow: stripWriteGlobs(customConfig?.filesystem?.denyWrite ??
                     config?.filesystem.denyWrite ??
                     []),

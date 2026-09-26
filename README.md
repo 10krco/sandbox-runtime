@@ -12,8 +12,12 @@ seccomp helpers (npm integrity
 `sha512-7GI5hDQ7vUHdkVsHHZ76kbVTzy2Wt0twcQhUDVpGG5mgn5vENpWXImU8kKFf+YifDHn7nSoltCqa1RAqZZbVtw==`;
 x64 SHA-256 `2c8fb6fb4f1a149c07160cb7dfe76331a72608227fef5b4fe20490d64f101a2b`,
 arm64 SHA-256 `d27545cb95bc36aa99ace62ba9cb2f2d4432b3dae7fea68d23f65b69e017c6d7`).
+Use a reviewed exact git commit rather than the upstream installation below:
+`npm install 'git+https://github.com/10krco/sandbox-runtime.git#<reviewed-commit>'`.
 No npm publication or automatic upstream update is implied. These binary
-provenance hashes are not an audit of the upstream implementation.
+provenance hashes are not an audit of the upstream implementation. The
+session-scoped Linux violation monitor cannot follow per-call changes to this
+setting; such attempts fail rather than producing misleading diagnostics.
 
 A lightweight sandboxing tool for enforcing filesystem and network restrictions on arbitrary processes at the OS level, without requiring a container.
 
@@ -26,7 +30,7 @@ A lightweight sandboxing tool for enforcing filesystem and network restrictions 
 ## Installation
 
 ```bash
-npm install -g @anthropic-ai/sandbox-runtime
+npm install -g @anthropic-ai/sandbox-runtime  # upstream package, not the 10krco fork
 ```
 
 ## Basic Usage
