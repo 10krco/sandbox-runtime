@@ -1321,6 +1321,13 @@ function createManager(legacySingleton) {
      * @param newConfig - The new configuration to use
      */
     function updateConfig(newConfig) {
+        // Linux's violation monitor classifies writes against the session policy.
+        // A live default-path toggle would desynchronize that evidence from bwrap.
+        if (config &&
+            (config.filesystem.includeDefaultWritePaths ?? true) !==
+                (newConfig.filesystem.includeDefaultWritePaths ?? true)) {
+            throw new Error('includeDefaultWritePaths requires reset and initialize');
+        }
         if (config?.network.offline || newConfig.network.offline) {
             throw new Error('Offline network policy cannot be updated; reset and initialize a new session');
         }

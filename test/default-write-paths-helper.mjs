@@ -12,17 +12,25 @@ const sentinel = join(logs, 'sentinel')
 const manager = createSandboxManager()
 let wrapped = false
 try {
-  await manager.initialize({
+  const config = {
     network: { allowedDomains: [], deniedDomains: ['*'] },
     filesystem: {
       includeDefaultWritePaths,
       denyRead: [], allowRead: [], allowWrite: [workspace], denyWrite: [],
     },
-  })
+  }
+  await manager.initialize(config)
   const allowed = manager.getFsWriteConfig().allowOnly
   assert.ok(allowed.includes(workspace))
   if (includeDefaultWritePaths) assert.ok(allowed.includes(logs))
   else assert.deepEqual(allowed, [workspace])
+  assert.throws(
+    () => manager.updateConfig({
+      ...config,
+      filesystem: { ...config.filesystem, includeDefaultWritePaths: !includeDefaultWritePaths },
+    }),
+    /requires reset and initialize/,
+  )
   await assert.rejects(
     manager.wrapWithSandbox('true', undefined, {
       filesystem: { includeDefaultWritePaths: !includeDefaultWritePaths },

@@ -18,8 +18,9 @@ For a local install, invoke the CLI as `npx srt` (or add
 `node_modules/.bin` to PATH); the `srt` examples below assume a global
 upstream install. No npm publication or automatic upstream update is implied. These binary
 provenance hashes are not an audit of the upstream implementation. The
-session-scoped Linux violation monitor cannot follow per-call changes to this
-setting; such attempts fail rather than producing misleading diagnostics.
+session-scoped Linux violation monitor cannot follow per-call or live
+`updateConfig()` changes to this setting; such attempts fail until reset and
+re-initialization rather than producing misleading diagnostics.
 
 For a fixed, deny-all Linux network policy, `network: { offline: true,
 allowedDomains: [], deniedDomains: ['*'] }` unshares the network namespace
